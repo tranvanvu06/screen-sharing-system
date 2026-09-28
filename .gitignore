@@ -1,0 +1,7 @@
+.logs/
+target/
+.idea/
+.bin/
+
+client.json
+host.json
