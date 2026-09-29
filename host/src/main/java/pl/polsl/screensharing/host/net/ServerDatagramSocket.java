@@ -54,23 +54,25 @@ public class ServerDatagramSocket extends AbstractDatagramSocketThread {
 
     @Override
     public void run() {
-        byte[] chunk; // pakiet do przesłania
-        int chunkOffset = 0; // przesunięcie pakietowe
-        byte[] compressedData = null; // skompresowany strumień bajtów (klatka)
-        int unprocessedDataLength = 0; // długość nieprzetworzonych danych
-        byte countOfPackages = 0; // liczba przesłanych pakietów na jedną klatkę
-        byte packageIteration = 1; // iterator przesłanych pakietów
-        final int debugBytesLength = 2; // ilość bajtów debugujących
-        final int lengthWithoutIV = PACKAGE_SIZE - debugBytesLength; // długość danych bez IV
+        byte[] chunk;
+        int chunkOffset = 0;
+        byte[] compressedData = null;
+        int unprocessedDataLength = 0;
+        byte countOfPackages = 0;
+        byte packageIteration = 1;
+        final int debugBytesLength = 2;
+        final int lengthWithoutIV = PACKAGE_SIZE - debugBytesLength;
 
         long lastTime = System.nanoTime();
         long currentTime;
         long timer = 0, logTimer = 0;
         long sentBytes = 0;
 
-        // Wątek działa w pętli dopóki istnieje sesja UDP. Kolejne przebiegi pętli to wysyłanie kolejnych to fragmentów
-        // jednej klatki obrazu w formie pakietów po N + 2 bajty debugujące definiujące ilość fragmentów na jedną
-        // klatkę oraz indeks fragmentu. Wartości te potrzebne są do korekcji błędów po stronie odbiorcy.
+        //Luồng (thread) này chạy lặp liên tục miễn là phiên UDP vẫn còn tồn tại.
+        // Mỗi vòng lặp sẽ gửi lần lượt các phần tiếp theo của một khung hình dưới dạng các gói tin có kích thước N + 2 byte.
+        // Hai byte bổ sung dùng cho mục đích kiểm tra/gỡ lỗi,
+        // bao gồm thông tin về số lượng phân mảnh của một khung hình và chỉ số của phân mảnh hiện tại.
+        // Các giá trị này cần thiết để thực hiện việc kiểm tra và sửa lỗi ở phía nhận.
 
         log.info("Started datagram thread with TID {}", getName());
         while (isThreadActive) {
@@ -84,16 +86,15 @@ public class ServerDatagramSocket extends AbstractDatagramSocketThread {
                     unprocessedDataLength = compressedData.length;
                     countOfPackages = (byte) Math.ceil((double) compressedData.length / lengthWithoutIV);
                 }
-                // przesyłaj pakiety dopóki ilość nieprzetworzonych bajtów będzie większa od rozmiaru ramki bez
-                // bajtów debugujących
+                // Gửi liên tục các gói tin khi số byte dữ liệu còn lại vẫn lớn hơn kích thước dữ liệu tối đa của một gói,
+                // không tính các byte debug.
                 if (unprocessedDataLength > lengthWithoutIV) {
-                    // prześlij fragment obrazu (jeden pakiet, rozmiar ramki (plus bajty debugujące)
+
                     chunk = new byte[FRAME_SIZE];
                     chunk[0] = countOfPackages;
                     chunk[1] = packageIteration;
 
-                    // kopiowanie strumienia bajtów JPEG do chunka z przesunięciem o już przetworzone pakiety oraz
-                    // 2 pakiety debugujące
+
                     System.arraycopy(compressedData, chunkOffset, chunk, debugBytesLength, lengthWithoutIV);
                     sendPackagesQueue.put(chunk);
 
@@ -102,7 +103,7 @@ public class ServerDatagramSocket extends AbstractDatagramSocketThread {
                     chunkOffset += lengthWithoutIV;
                     packageIteration++;
                 } else {
-                    // przeslij jeden pakiet (lub ostatni pakiet)
+
                     chunk = new byte[unprocessedDataLength + debugBytesLength + IV_SIZE];
                     chunk[0] = countOfPackages;
                     chunk[1] = packageIteration;

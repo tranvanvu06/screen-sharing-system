@@ -98,7 +98,7 @@ public class ClientThread extends Thread {
         StreamingSignalState streamingSignalState;
         final StreamingState streamingState = hostState.getLastEmittedStreamingState();
         final Boolean isShowing = hostState.getLastEmittedIsScreenIsShowForParticipants();
-        // jeśli streamowanie jest aktywne a ekran nie jest ukryty
+
         if (streamingState.equals(StreamingState.STREAMING)) {
             streamingSignalState = isShowing
                 ? StreamingSignalState.STREAMING
@@ -111,7 +111,7 @@ public class ClientThread extends Thread {
 
     private void authenticationEventLoop(String data) throws Exception {
         switch (socketState) {
-            // pobranie klucza publicznego od klienta i odesłanie do niego własnego klucza publicznego
+            // Nhận public key từ client, sau đó gửi public key của server lại cho client
             case EXHANGE_KEYS_REQ: {
                 clientPublicKey = cryptoAsymmetricHelper.base64ToPublicKey(data);
                 final String keyEnc = cryptoAsymmetricHelper.publicKeyToBase64();
@@ -119,8 +119,8 @@ public class ClientThread extends Thread {
                 log.info("(to-way exchange) Save client public key and send server public key to the client");
                 break;
             }
-            // porównanie nadesłanego hasza hasła od klienta z hasłem sesji i wysłanie zestawu kluczy do szyfrowania
-            // symetrycznego dla połączenia UDP
+            // So sánh mã băm (hash) của mật khẩu nhận được từ client với mật khẩu của phiên,
+            // sau đó gửi bộ khóa dùng để mã hóa đối xứng cho kết nối UDP.
             case CHECK_PASSWORD_REQ: {
                 performSSLExchange(data, decryptedObj -> {
                     boolean isValid = true;
@@ -140,8 +140,8 @@ public class ClientThread extends Thread {
                 }, AuthPasswordReq.class);
                 break;
             }
-            // pobranie dodatkowych danych od klienta (ip, port, username) oraz odesłanie informacji o
-            // strumieniu video
+            // Nhận các thông tin bổ sung từ client (địa chỉ IP, cổng và tên người dùng),
+// sau đó gửi lại thông tin về luồng video.
             case SEND_CLIENT_DATA_REQ: {
                 performSSLExchange(data, decryptedObj -> {
                     final ConnectedClientInfo connectedClientInfo = ConnectedClientInfo.builder()
@@ -154,7 +154,7 @@ public class ClientThread extends Thread {
                     connectedClients.merge(threadId, connectedClientInfo, (existingList, newList) -> existingList);
                     hostState.updateConnectedClients(connectedClients);
 
-                    // uruchomienie wątku wysyłającego zdarzenia do klientów poprzez event-loop
+                    // Khởi chạy luồng (thread) gửi các sự kiện đến client thông qua vòng lặp sự kiện (event loop).
                     sendSignalsThread.start();
 
                     return VideoFrameDetails.builder()

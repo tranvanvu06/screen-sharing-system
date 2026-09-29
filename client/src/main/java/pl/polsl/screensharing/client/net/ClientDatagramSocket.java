@@ -45,21 +45,30 @@ public class ClientDatagramSocket extends AbstractDatagramSocketThread {
         final ByteArrayOutputStream receivedDataBuffer = new ByteArrayOutputStream();
 
         final int debugBytesLength = 2; // ilość bajtów debugujących
-        // bufor na dane przychodzące (dane + bufor debugujący + IV)
+        // Bộ đệm chứa dữ liệu nhận vào (dữ liệu + bộ đệm debug + IV).
         byte[] receiveBuffer = new byte[FRAME_SIZE];
-        byte countOfPackages; // liczba pakietów uzyskana przez obiornik
-        byte packageIteration; // iterator pakietów uzyskany przez obiornik
+        byte countOfPackages; // Số lượng gói tin mà phía nhận (receiver) đã nhận được.
+        byte packageIteration; // Chỉ số (iterator) của gói tin mà phía nhận (receiver) đã nhận được.
         boolean isCorrupted = false;
         boolean isStarted = false;
         byte prevPackageIteration = 1;
 
-        // Wątek odbierający dane nadawane na kanał UDP przez hosta. Posiada prosty system korekcji błędów. Główna pętla
-        // co iteracje pobiera kolejne paczki nadsyłane przez hosta. Z paczek ~32kb pobierany jest 3 bajtowy ciąg
-        // debugujący oraz pozostałe bajty (strumień JPEG). Dane w ciągu debugującym weryfikują poprawność pod względem:
-        // - ilości paczek na jedną klatkę
-        // - kolejności paczek
-        // Jeśli zostanie wykryty problem z ilością paczek na jedną klatkę lub paczki będa w złej kolejności, bufor jest
-        // odrzucany a klatka nie jest renderowana.
+        // Luồng (thread) nhận dữ liệu được host truyền qua kênh UDP.
+// Luồng này có một hệ thống kiểm tra và sửa lỗi đơn giản.
+//
+// Trong mỗi vòng lặp chính, luồng sẽ nhận lần lượt các gói tin do host gửi đến.
+// Từ mỗi gói có kích thước khoảng 32 KB, chương trình sẽ tách ra:
+// - 3 byte dữ liệu dùng để debug/kiểm tra.
+// - Các byte còn lại chứa dữ liệu của luồng ảnh JPEG.
+//
+// Dữ liệu trong 3 byte debug được sử dụng để kiểm tra tính chính xác dựa trên:
+// - Số lượng gói tin tạo thành một khung hình.
+// - Thứ tự của các gói tin.
+//
+// Nếu phát hiện số lượng gói tin của một khung hình không chính xác
+// hoặc các gói tin được nhận sai thứ tự,
+// toàn bộ dữ liệu trong bộ đệm (buffer) sẽ bị loại bỏ
+// và khung hình đó sẽ không được hiển thị (render).
 
         long lastTime = System.nanoTime();
         long currentTime;
@@ -77,15 +86,17 @@ public class ClientDatagramSocket extends AbstractDatagramSocketThread {
                 datagramSocket.receive(receivePacket);
                 recvBytes += receivePacket.getLength();
 
-                // odkodowanie danych przy użyciu klucza AES oraz zaszyfrowanego w nim IV (z uwagi na CTR
+                // Giải mã dữ liệu bằng khóa AES và IV được mã hóa kèm theo,
+// do sử dụng chế độ mã hóa CTR (Counter Mode).
                 final byte[] decrypted = cryptoSymmetricHelper
                     .decrypt(receivePacket.getData(), receivePacket.getLength());
 
-                // przenieś odszyfrowane 3 bajty debugujące do zmiennych
+                // Chuyển 3 byte debug đã được giải mã vào các biến tương ứng.
                 countOfPackages = decrypted[0];
                 packageIteration = decrypted[1];
 
-                // jeśli dołączono w trakcie, ignoruj fragmenty do momentu pierwszego fragmentu klatki
+                // Nếu tham gia vào giữa quá trình truyền,
+// bỏ qua các phân mảnh cho đến khi nhận được phân mảnh đầu tiên của một khung hình.
                 if (!isStarted) {
                     if (packageIteration == 1) {
                         isStarted = true;
@@ -94,18 +105,20 @@ public class ClientDatagramSocket extends AbstractDatagramSocketThread {
                     }
                 }
 
-                // dodaj odszyfrowane dane z pominięciem bajtów debugujących i 128 bitowego IV do bufora
+                // Thêm dữ liệu đã giải mã vào bộ đệm (buffer),
+// bỏ qua các byte debug và IV 128-bit.
                 receivedDataBuffer.write(decrypted, debugBytesLength,
                     decrypted.length - debugBytesLength);
 
-                // jeśli wykryje, że klatki są w niewłaściwej kolejności, ustaw klatkę jako corrupted
+                // Nếu phát hiện các khung hình hoặc phân mảnh không đúng thứ tự,
+// đánh dấu khung hình hiện tại là bị lỗi (corrupted).
                 if (prevPackageIteration < packageIteration - 1) {
                     isCorrupted = true;
                 }
                 prevPackageIteration = packageIteration;
 
-                // poskładaj klatki i wygeneruj obraz jeśli przesłano wszystkie
-                // fragmenty klatki oraz nie są one uszkodzone
+                // Ghép các phân mảnh của khung hình lại và tạo ra hình ảnh
+// nếu đã nhận đầy đủ tất cả các phân mảnh và chúng không bị lỗi.
                 if (countOfPackages == packageIteration) {
                     if (!isCorrupted) {
                         final byte[] receivedData = receivedDataBuffer.toByteArray();
@@ -117,7 +130,7 @@ public class ClientDatagramSocket extends AbstractDatagramSocketThread {
                         corruptedFrames++;
                     }
                     isCorrupted = false;
-                    receivedDataBuffer.reset(); // wyczyść bufor na fragmenty klatek
+                    receivedDataBuffer.reset();// Xóa (làm sạch) bộ đệm chứa các phân mảnh của khung hình.
                 }
             } catch (Exception ex) {
                 isCorrupted = false;

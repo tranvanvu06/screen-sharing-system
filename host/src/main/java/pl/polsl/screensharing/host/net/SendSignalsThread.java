@@ -38,7 +38,7 @@ public class SendSignalsThread extends Thread {
 
     private void signalEventLoop() throws Exception {
         switch (eventSignalState) {
-            // sygnał w przypadku uruchomienia streamowania ekranu
+            // Tín hiệu được phát khi bắt đầu truyền phát (stream) màn hình.
             case EVENT_START_STREAMING: {
                 final VideoFrameDetails videoFrameDetails = VideoFrameDetails.builder()
                     .aspectRatio(Utils.calcAspectRatio(hostWindow.getVideoCanvas().getController().getRawImage()))
@@ -49,7 +49,7 @@ public class SendSignalsThread extends Thread {
                 log.info("(signal event) Send start sharing screen event with data {}", videoFrameDetails);
                 break;
             }
-            // sygnał w przypadku zatrzymania streamowania ekranu
+            // Tín hiệu được phát khi dừng truyền phát (stream) màn hình.
             case EVENT_STOP_STREAMING: {
                 final SignalState<Boolean> signalState = new SignalState<>(true);
                 performSSLSignal(signalState, SocketState.EVENT_STOP_STREAMING);
@@ -57,7 +57,7 @@ public class SendSignalsThread extends Thread {
                 log.info("(signal event) Send stop sharing screen event with data {}", signalState);
                 break;
             }
-            // sygnał w przypadku pokazania/showania ekranu przez hosta
+            // Tín hiệu được phát khi host hiển thị/ẩn màn hình.
             case EVENT_TOGGLE_SCREEN_VISIBILITY: {
                 final VideoFrameDetails videoFrameDetails = VideoFrameDetails.builder()
                     .aspectRatio(Utils.calcAspectRatio(hostWindow.getVideoCanvas().getController().getRawImage()))
@@ -69,7 +69,7 @@ public class SendSignalsThread extends Thread {
                 log.info("(signal event) Send show/hide screen event with data {}", videoFrameDetails);
                 break;
             }
-            // sygnał w przypadku wyrzucenia użytkownika/użytkowników z sesji
+            // Tín hiệu được phát khi một hoặc nhiều người dùng bị đẩy (kick) khỏi phiên.
             case KICK_FROM_SESSION: {
                 final KickReason kickReason = new KickReason("You has been kicked from session.");
                 performSSLSignal(kickReason, SocketState.KICK_FROM_SESSION);
@@ -78,7 +78,7 @@ public class SendSignalsThread extends Thread {
                 log.info("(signal event) Send kick user/s event with data {}", kickReason);
                 break;
             }
-            // sygnał w przypadku zakończenia sesji
+            // Tín hiệu được phát khi phiên kết thúc.
             case END_UP_SESSION: {
                 final KickReason kickReason = new KickReason("Session has been ended.");
                 performSSLSignal(kickReason, SocketState.END_UP_SESSION);

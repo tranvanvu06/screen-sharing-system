@@ -58,7 +58,7 @@ public class ReceiveSignalsThread extends Thread {
                 signalState = SocketState.extractHeader(line);
                 signalRawData = SocketState.extractContent(line);
                 switch (signalState) {
-                    // sygnał w przypadku uruchomienia streamowania ekranu przez hosta
+                    // Tín hiệu được phát khi host bắt đầu truyền phát (stream) màn hình.
                     case EVENT_START_STREAMING: {
                         final VideoFrameDetails videoFrameDetails = exchangeSSLRequest(VideoFrameDetails.class);
                         final StreamingSignalState state = videoFrameDetails.getStreamingSignalState();
@@ -72,7 +72,7 @@ public class ReceiveSignalsThread extends Thread {
                         log.info("(signal event) Receive start sharing screen event with data {}", videoFrameDetails);
                         break;
                     }
-                    // sygnał w przypadku zatrzymania streamowania ekranu przez hosta
+                    // Tín hiệu được phát khi host dừng truyền phát (stream) màn hình.
                     case EVENT_STOP_STREAMING: {
                         clientState.updateVisibilityState(VisibilityState.WAITING_FOR_CONNECTION);
 
@@ -80,7 +80,7 @@ public class ReceiveSignalsThread extends Thread {
                         log.info("(signal event) Receive stop sharing screen event");
                         break;
                     }
-                    // sygnał w przypadku pokazania/showania ekranu przez hosta
+                    // Tín hiệu được phát khi host hiển thị hoặc ẩn màn hình.
                     case EVENT_TOGGLE_SCREEN_VISIBILITY: {
                         final VideoFrameDetails videoFrameDetails = exchangeSSLRequest(VideoFrameDetails.class);
                         final StreamingSignalState state = videoFrameDetails.getStreamingSignalState();
@@ -94,7 +94,8 @@ public class ReceiveSignalsThread extends Thread {
                         log.info("(signal event) Receive show/hide screen event with data {}", videoFrameDetails);
                         break;
                     }
-                    // sygnał w przypadku zakończenia sesji dla użytkownika (wyrzucenie, wyłączenie przez hosta)
+                    // Tín hiệu được phát khi phiên làm việc của người dùng kết thúc
+// (do bị host loại khỏi phiên hoặc do host kết thúc/tắt phiên).
                     case END_UP_SESSION:
                     case KICK_FROM_SESSION: {
                         final KickReason kickReason = exchangeSSLRequest(KickReason.class);
@@ -122,9 +123,11 @@ public class ReceiveSignalsThread extends Thread {
         final AuthPasswordRes res = clientTcpSocket.getAuthPasswordRes();
         final ConnectionDetails details = clientTcpSocket.getConnectionDetails();
 
-        // uruchomienie grabbera do odbierania strumienia obrazu tylko w przypadku gdy nie jest jeszcze
-        // uruchomiony, bądź przy ponownym uruchomieniu (wątek w przypadku braku obrazu jest joinowany do głównego
-        // wątku aby zaoszczędzić zasoby)
+        // Khởi chạy grabber để nhận luồng hình ảnh chỉ khi nó chưa được chạy
+// hoặc khi cần khởi động lại.
+//
+// Trong trường hợp không có hình ảnh, luồng (thread) này sẽ được join
+// vào luồng chính để tiết kiệm tài nguyên hệ thống.
         if (!clientWindow.getClientDatagramSocket().isAlive()) {
             final ClientDatagramSocket clientDatagramSocket = new ClientDatagramSocket(clientWindow,
                 videoCanvas, videoCanvas.getController());
